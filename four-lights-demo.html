@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Four Lights with Pyramid</title>
+<link rel="stylesheet" href="../demo.css">
+<script src="../script/demo-core.js"></script>
+<script src="../script/glsim.js"></script>
+
+<script>
+
+var camera;
+
+var animate;       // checkbox that controls animation
+var drawBase;      // checkbox for turning display of base on and off
+var ambientLight;  // checkbox for turning global ambient light on and off
+var viewpointLight, redLight, blueLight, greenLight;  // checkboxes for turning lights on and off
+
+var animating = false;  // tells whether the animation is running
+var frameNumber = 0;  // frame number for use in animation
+
+//------------------- Drawing functions ----------------------------------------
+
+function drawCylinder() {
+    var i;
+    var rgba;
+    glBegin(GL_TRIANGLE_STRIP);
+    for (i = 0; i <= 64; i++) {
+        var angle = 2 * Math.PI / 64 * i;
+        var x = Math.cos(angle);
+        var y = Math.sin(angle);
+        rgba = colorArrayForHue(i / 64.0, 1, 0.6);
+        glColor3dv(rgba);
+        glNormal3d(x, y, 0);  // Normal for both vertices at this angle.
+        glVertex3d(x, y, 1);  // Vertex on the top edge.
+        glVertex3d(x, y, -1); // Vertex on the bottom edge.
+    }
+    glEnd();
+}
+
+
+
+/* Draws a sphere. */
+function uvSphere(radius, slices, stacks) {
+    var i,j;
+    for (j = 0; j < stacks; j++) {
+        var latitude1 = (Math.PI/stacks) * j - Math.PI/2;
+        var latitude2 = (Math.PI/stacks) * (j+1) - Math.PI/2;
+        var sinLat1 = Math.sin(latitude1);
+        var cosLat1 = Math.cos(latitude1);
+        var sinLat2 = Math.sin(latitude2);
+        var cosLat2 = Math.cos(latitude2);
+        glBegin(GL_TRIANGLE_STRIP);
+        for (i = 0; i <= slices; i++) {
+            var longitude = (2*Math.PI/slices) * i;
+            var sinLong = Math.sin(longitude);
+            var cosLong = Math.cos(longitude);
+            var x1 = cosLong * cosLat1;
+            var y1 = sinLong * cosLat1;
+            var z1 = sinLat1;
+            var x2 = cosLong * cosLat2;
+            var y2 = sinLong * cosLat2;
+            var z2 = sinLat2;
+            glNormal3d(x2,y2,z2);
+	    glVertex3d(radius*x2,radius*y2,radius*z2);
+	    glNormal3d(x1,y1,z1);
+            glVertex3d(radius*x1,radius*y1,radius*z1);
+        }
+        glEnd();
+    }
+}
+
+/* Draws a pyramid with a 13-sided base. */
+function drawPyramid() {
+    var height = 1.0;  // Height of the pyramid
+    var radius = 1.0;  // Radius of the circular base
+    var numSides = 13;  // Number of sides for the base
+
+    // Draw the base
+    glBegin(GL_TRIANGLE_FAN);
+    glVertex3d(0, 0, -height/2);  // Center of the base
+    for (let i = 0; i <= numSides; i++) {
+        var angle = 2 * Math.PI * i / numSides;
+        var x = radius * Math.cos(angle);
+        var y = radius * Math.sin(angle);
+        glVertex3d(x, y, -height/2);
+    }
+    glEnd();
+
+    // Draw the sides
+    glBegin(GL_TRIANGLES);
+    var apexX = 0;
+    var apexY = 0;
+    var apexZ = height / 2;  // Apex is at height/2 on the z-axis
+
+    for (let i = 0; i < numSides; i++) {
+        var angle1 = 2 * Math.PI * i / numSides;
+        var angle2 = 2 * Math.PI * (i + 1) / numSides;
+
+        var x1 = radius * Math.cos(angle1);
+        var y1 = radius * Math.sin(angle1);
+
+        var x2 = radius * Math.cos(angle2);
+        var y2 = radius * Math.sin(angle2);
+
+        // Vertex at the base
+        glVertex3d(x1, y1, -height/2);
+        glVertex3d(x2, y2, -height/2);
+
+        // Vertex at the apex
+        glVertex3d(apexX, apexY, apexZ);
+    }
+    glEnd();
+}
+
+/*  Sets the positions of the colored lights and turns them on and off, depending on
+ *  the state of the redLight, greenLight, and blueLight options.  Draws a small
+ *  sphere at the location of each light.
+ */
+function lights() {
+
+    glColor3d(0.5,0.5,0.5);
+    var zero = [ 0, 0, 0, 1 ];
+    glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, zero);
+    
+    if (viewpointLight.checked)
+        glEnable(GL_LIGHT0);
+    else
+        glDisable(GL_LIGHT0);
+    
+    if (redLight.checked) {
+        glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, [0.5, 0, 0, 1]);  
+        glEnable(GL_LIGHT1);
+    }
+    else {
+        glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, zero);  
+        glDisable(GL_LIGHT1);
+    }
+    glPushMatrix();
+    glRotated(-frameNumber, 0, 1, 0);
+    glTranslated(10, 7, 0);
+    glLightfv(GL_LIGHT1, GL_POSITION, zero);
+    uvSphere(0.5, 16, 8);
+    glPopMatrix();
+    
+    if (greenLight.checked) {
+        glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, [0, 0.5, 0, 1]); 
+        glEnable(GL_LIGHT2);
+    }
+    else {
+        glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, zero); 
+        glDisable(GL_LIGHT2);
+    }
+    glPushMatrix();
+    glRotated((frameNumber+100)*0.8743, 0, 1, 0);
+    glTranslated(9, 8, 0);
+    glLightfv(GL_LIGHT2, GL_POSITION, zero);
+    uvSphere(0.5, 16, 8);
+    glPopMatrix();
+    
+    if (blueLight.checked) {
+        glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, [0, 0, 0.5, 1]); 
+        glEnable(GL_LIGHT3);
+    }
+    else {
+        glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, zero);
+        glDisable(GL_LIGHT3);
+    }
+    glPushMatrix();
+    glRotated((frameNumber-100)*1.3057, 0, 1, 0);
+    glTranslated(9.5, 7.5, 0);
+    glLightfv(GL_LIGHT3, GL_POSITION, zero);
+    uvSphere(0.5, 16, 8);
+    glPopMatrix();
+
+    glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, zero); // Turn off emission color!
+}
+
+
+function display() {
+    glClearColor(0, 0, 0, 1);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    camera.apply();
+
+    lights();
+
+    if (ambientLight.checked) {
+        glLightModelfv(GL_LIGHT_MODEL_AMBIENT, [0.15, 0.15, 0.15, 1]);
+    } else {
+        glLightModelfv(GL_LIGHT_MODEL_AMBIENT, [0, 0, 0, 1]);
+    }
+
+    // Drawing the base
+    if (drawBase.checked) {
+        glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, [1, 1, 1, 1]);  // Make the base shiny
+        glPushMatrix();
+        glTranslated(0, -4.6, -0.25);  // Lower the base slightly below the pyramid
+        glRotated(-90, 1, 0, 0);  // Rotate the base to be horizontal
+        glScaled(10, 10, 1);  // Scale the base to be appropriately large
+        drawDiskBase();  // Function to draw a flat disk base
+        glPopMatrix();
+    }
+
+    // Drawing the pyramid
+    glColor3d(0.7, 0.7, 0.7);  // Sets diffuse and ambient color for the pyramid
+    glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, [0.2, 0.2, 0.2, 1]);  // Specular properties of the pyramid
+
+    glPushMatrix();
+    glTranslatef(0, 0.68, 0);
+    glScalef(10.0, 10.0, 10.0);  // Scale the pyramid to make it larger
+    glRotatef(-90, 1, 0, 0);  // Rotate the pyramid to make the apex point upward
+    drawPyramid();  // Draw the custom pyramid
+    glPopMatrix();
+}
+
+function drawDiskBase() {
+    var thickness = 1; // Grubość dysku
+
+    // Rysowanie górnej powierzchni dysku
+    glBegin(GL_TRIANGLE_FAN);
+    glColor3f(1.0, 1.0, 1.0); // Kolor środka biały
+    glVertex3f(0, 0, thickness/2);  // Środek dysku, lekko podniesiony
+    for (let angle = 0; angle <= 360; angle++) {
+        let rad = angle * Math.PI / 180;
+        let red = 0.5 + 0.5 * Math.cos(rad);
+        let green = 0.5 + 0.5 * Math.sin(rad);
+        let blue = 0.5 + 0.5 * Math.cos(rad + Math.PI / 2);
+        glColor3f(red, green, blue);
+        glVertex3f(Math.cos(rad) * 1.5, Math.sin(rad) * 1.5, thickness/2);
+    }
+    glEnd();
+
+    // Rysowanie dolnej powierzchni dysku
+    glBegin(GL_TRIANGLE_FAN);
+    glVertex3f(0, 0, -thickness/2);  // Środek dysku, lekko opuszczony
+    for (let angle = 0; angle <= 360; angle++) {
+        let rad = angle * Math.PI / 180;
+        let red = 0.5 + 0.5 * Math.cos(rad);
+        let green = 0.5 + 0.5 * Math.sin(rad);
+        let blue = 0.5 + 0.5 * Math.cos(rad + Math.PI / 2);
+        glColor3f(red, green, blue);
+        glVertex3f(Math.cos(rad) * 1.5, Math.sin(rad) * 1.5, -thickness/2);
+    }
+    glEnd();
+
+    // Rysowanie bocznych ścian
+    glBegin(GL_TRIANGLE_STRIP);
+    for (let angle = 0; angle <= 360; angle++) {
+        let rad = angle * Math.PI / 180;
+        let red = 0.5 + 0.5 * Math.cos(rad);
+        let green = 0.5 + 0.5 * Math.sin(rad);
+        let blue = 0.5 + 0.5 * Math.cos(rad + Math.PI / 2);
+        glColor3f(red, green, blue);
+        glVertex3f(Math.cos(rad) * 1.5, Math.sin(rad) * 1.5, thickness/2);
+        glVertex3f(Math.cos(rad) * 1.5, Math.sin(rad) * 1.5, -thickness/2);
+    }
+    glEnd();
+}
+
+
+
+
+
+/* Initialization, including setting up a camera and configuring the four lights. */
+function initGL() {
+    glClearColor(0, 0, 0, 1);  
+    glEnable(GL_DEPTH_TEST); 
+    glEnable(GL_LIGHTING);
+    glEnable(GL_LIGHT0);
+    glEnable(GL_NORMALIZE);
+    glEnable(GL_COLOR_MATERIAL);
+    glLightModeli(GL_LIGHT_MODEL_LOCAL_VIEWER, 1);
+    glMateriali(GL_FRONT_AND_BACK, GL_SHININESS, 32);
+
+    var dim = [ 0.5, 0.5, 0.5, 1 ];
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, dim);
+    glLightfv(GL_LIGHT0, GL_SPECULAR, dim);
+
+    var red =  [ 0.5, 0, 0, 1];
+    var reda = [ 0.1, 0, 0, 1];
+    glLightfv(GL_LIGHT1, GL_AMBIENT, reda);
+    glLightfv(GL_LIGHT1, GL_DIFFUSE, red);
+    glLightfv(GL_LIGHT1, GL_SPECULAR, red);
+
+    var gr = [ 0, 0.5, 0, 1 ];
+    var gra = [ 0, 0.1, 0, 1 ];
+    glLightfv(GL_LIGHT2, GL_AMBIENT, gra);
+    glLightfv(GL_LIGHT2, GL_DIFFUSE, gr);
+    glLightfv(GL_LIGHT2, GL_SPECULAR, gr);
+
+    var bl = [0, 0, 0.5, 1];
+    var bla = [0, 0, 0.1, 1];
+    glLightfv(GL_LIGHT3, GL_AMBIENT, bla);
+    glLightfv(GL_LIGHT3, GL_DIFFUSE, bl);
+    glLightfv(GL_LIGHT3, GL_SPECULAR, bl);
+}
+
+/* Animation function, called every 30 milliseconds if an animation is running. */
+function doFrame() {
+    if (animating) {
+	frameNumber++;
+	display();
+	setTimeout(doFrame, 30);
+    }
+}
+
+function init() {
+    try {
+        glsimUse("maincanvas");
+    }
+    catch (e) {
+        document.getElementById("canvas-holder").innerHTML="<p><b>Sorry, an error occurred:<br>" +
+                e + "</b></p>";
+	return;
+    }
+    animate = document.getElementById("animate");
+    drawBase = document.getElementById("drawBase");
+    ambientLight = document.getElementById("ambientLight");
+    viewpointLight = document.getElementById("viewpointLight");
+    redLight = document.getElementById("redLight");
+    blueLight = document.getElementById("blueLight");
+    greenLight = document.getElementById("greenLight");
+    animate.checked = false;
+    drawBase.checked = true;
+    ambientLight.checked = true;
+    viewpointLight.checked = true;
+    redLight.checked = true;
+    greenLight.checked = true;
+    blueLight.checked = true;
+    drawBase.onchange = display;
+    ambientLight.onchange = display;
+    viewpointLight.onchange = display;
+    redLight.onchange = display;
+    blueLight.onchange = display;
+    greenLight.onchange = display;
+    animate.onchange = function() {
+	if (animate.checked) {
+	    animating = true;
+	    doFrame();
+	}
+	else {
+	    animating = false;
+	}
+    }
+    initGL();
+    camera = new Camera();
+    camera.lookAt(5,10,30, 0,0,0, 0,1,0);
+    camera.setScale(15);
+    camera.installTrackball(display);
+    display();
+}
+
+</script>
+</head>
+<body onload="init()">
+
+<div id="content">
+
+<h3 id="headline">Four Lights with Pyramid Demo</h3>
+
+<div id="canvas-holder">
+<canvas id="maincanvas" width="600" height="600"></canvas>
+</div>
+
+<div id="tools">
+<p>
+<label><input type="checkbox" id="animate">Animate</label><br><br>
+<label><input type="checkbox" id="drawBase">DrawBase</label><br><br>
+<label><input type="checkbox" id="ambientLight">Global Ambient</label><br><br>
+<label><input type="checkbox" id="viewpointLight">Viewpoint Light</label><br>
+<label><input type="checkbox" id="redLight">Red Light</label><br>
+<label><input type="checkbox" id="greenLight">Green Light</label><br>
+<label><input type="checkbox" id="blueLight">Blue Light</label><br>
+</p>
+</div>
+
+</div>
+
+
+
+<!-- support for help text -- do not change. -->
+<div id="help-icon">
+<img src="../image/question32.png" onclick="showDemoHelp()"
+    title="Click here for information about this demo." width="32" height="32">
+</div>
+<div id="hide-help-icon">
+<img src="../image/close32.png" onclick="showDemoHelp()"
+    title="Click here to return to the demo." width="65" height="32">
+</div>
+<div id="helpBG" style="display:none"></div>
+</body>
+</html>
